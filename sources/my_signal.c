@@ -1,7 +1,6 @@
 #include <pthread.h>
 #include <signal.h>
 #include <string.h>
-#include <stdio.h>
 #include "my_signal.h"
 
 void set_signal_mask(){
