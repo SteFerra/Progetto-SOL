@@ -3,13 +3,12 @@
 
 #include <stdlib.h>
 
-typedef struct linkedlist {
-    void *string;
-    size_t dim;
-    size_t size;
-    size_t elem_size;
-} linkedlist;
+typedef struct linkedlist *linkedlist;
 
-int init_list(linkedlist *list, size_t string_size);
+int init_list(linkedlist* list);
+int delete_list(linkedlist list);
+int add_file(linkedlist list, char* file);
+
+void print_list(linkedlist list);
 
 #endif //PROGETTO_LINKED_LIST_H
