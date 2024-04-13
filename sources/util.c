@@ -1,9 +1,10 @@
+#include <unistd.h>
 #include "util.h"
 
 
 
   void print_error(const char * str, ...) {
-    const char err[]="ERRORE: ";
+    const char err[]="";
     va_list argp;
     char * p=(char *)malloc(strlen(str)+strlen(err)+EXTRA_LEN_PRINT_ERROR);
     if (!p) {
@@ -19,7 +20,7 @@
     free(p);
 }
 
-static inline int isNumber(const char* s, int * n) {
+ int isNumber(const char* s, int * n) {
     if (s==NULL) return 1;
     if (strlen(s)==0) return 1;
     char* e = NULL;
@@ -40,4 +41,20 @@ int checkPosNum(const char* optarg, int* option, const char* error_message){
         return -1;
     }
     return 0;
+}
+
+ssize_t writen(int fd, void *buf, size_t size) {
+    size_t left;
+    ssize_t  nwritten;
+    char *ptr = (char *) buf;
+    left = size;
+    while (left > 0) {
+        if((nwritten = write(fd, buf, left)) < 0) {
+            if (left == size) return -1; /* error, return -1 */
+            else break; /* error, return amount written so far */
+        } else if (nwritten == 0) break;
+        left -= nwritten;
+        ptr += nwritten;
+    }
+    return(size - left); /* return >= 0 */
 }
