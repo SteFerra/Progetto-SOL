@@ -1,14 +1,30 @@
 #include <stdio.h>
 #include <unistd.h>
 #include <sys/wait.h>
+#include <signal.h>
 
 
 #include "my_signal.h"
 #include "util.h"
 #include "master.h"
 
-//variabili usate dai segnali
-volatile sig_atomic_t interrupted;
+void* sig_handler(void* arg){
+    sigset_t set;
+
+    set_signal_mask();
+    register_handlers();
+    //creo la signal mask e registro i segnali
+
+    int s, sig;
+    for(;;){
+        s = sigwait(&set, &sig);
+        if(s!=0){
+            print_error("Errore nella sigwait\n");
+            exit(-1);
+        }
+    }
+    return NULL;
+}
 
 int main(int argc, char *argv[]) {
     printf("MasterWorker in avvio...\n");
@@ -19,13 +35,17 @@ int main(int argc, char *argv[]) {
         return -1;
     }
 
-    //creo la signal mask e registro i segnali
-    set_signal_mask();
-    register_handlers();
-
     //processo MasterWorker
     pid_t MasterWorker_pid = fork();
     if(MasterWorker_pid == 0){
+
+        pthread_t sig_thread;
+        int ret = pthread_create(&sig_thread, NULL, &sig_handler, NULL );
+        if(ret != 0){
+            print_error("Errore nella creazione del thread per la gestione dei segnali\n");
+            return -1;
+        }
+
         return master_worker(argc, argv);
     }
 
