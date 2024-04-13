@@ -70,7 +70,7 @@ int add_file(linkedlist *list, char* file){
         return -1;
     }
     list->dim++;
-    printf("File <%s> aggiunto alla lista\n", file);
+    //printf("File <%s> aggiunto alla lista\n", file);
     return 0;
 }
 
