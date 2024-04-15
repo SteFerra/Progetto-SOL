@@ -1,6 +1,7 @@
 #include <pthread.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <string.h>
 
 #include "config.h"
 
@@ -12,9 +13,8 @@ typedef struct concurrent_queue {
     size_t end;
     pthread_mutex_t mutex;
     pthread_cond_t not_empty; //condizione che tiene traccia se la coda non è vuota
+    pthread_cond_t not_full; //condizione che tiene traccia se la coda non è piena
 } concurrent_queue;
-
-int init_queue(concurrent_queue **queue, size_t size);
 
 int init_queue(concurrent_queue **queue, size_t size) {
     int i = 0;
@@ -67,5 +67,34 @@ void delete_queue(concurrent_queue *queue) {
     pthread_mutex_destroy(&queue->mutex);
     pthread_cond_destroy(&queue->not_empty);
     free(queue);
+}
+
+void add_file_queue(concurrent_queue *queue, char *file){
+    if(queue == NULL || file == NULL){
+        return;
+    }
+    pthread_mutex_lock(&queue->mutex);
+    while(queue->end == queue->size){
+        pthread_cond_wait(&queue->not_full, &queue->mutex);
+    }
+
+    strncpy(queue->tasks[queue->end], file, queue->max_size);
+    queue->end = (queue->end + 1) % queue->size;
+
+
+    pthread_cond_signal(&queue->not_empty);
+    pthread_mutex_unlock(&queue->mutex);
+
+
+}
+
+void print_queue(concurrent_queue *queue){
+    if(queue == NULL){
+        return;
+    }
+    for(int i = 0; i < queue->size; i++){
+        printf("File <%s> in posizione %d\n", queue->tasks[i], i);
+    }
+
 }
 
