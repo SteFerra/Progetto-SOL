@@ -13,6 +13,7 @@
 #include "config.h"
 #include "concurrent_queue.h"
 #include "threadpool.h"
+#include "results.h"
 
 static void *signal_task(void *arg);
 int get_options(int argc, char* argv[], int* nthread, int* qlen, int* delay, char *directory, linkedlist argfiles, bool *directory_set);
@@ -80,19 +81,6 @@ int master_worker(int argc, char *argv[]){
         return -1;
     }
 
-    /*//invio un messaggio contenente ciao al processo Collector usando writen
-    char *msg = "Ciao";
-    if(writen(sock_collector, msg, strlen(msg)) == -1){
-        print_error("Errore nell'invio del messaggio al processo Collector\n");
-        clear_all(argfiles, queue);
-        return -1;
-    }
-    printf("Messaggio inviato al processo Collector\n");
-    */
-
-    print_list(argfiles);
-    printf("\n");
-    //unmask();
     char file[MAX_PATH_LEN + 1]; //nome dle file + 1 per '/0'
     int result;
     while(!siginterruption_received){
@@ -109,14 +97,9 @@ int master_worker(int argc, char *argv[]){
             //altrimenti prendo un file dalla lista
         result = get_file(argfiles, file);
         if(result == 0){
-            printf("File da inserire nella coda: %s\n", file);
             // Inserisco il file all'interno della coda concorrente (con un delay se presente)
             add_file_queue(queue, file);
-        }
-
-        //se la lista è vuota aspetto un secondo
-        else if(result == -1){
-            sleep(5);
+            usleep(delay * 1000); //delay in millisecondi
         }
 
     }
@@ -158,7 +141,52 @@ static void *signal_task(void* arg){
 }
 
 static void *task(void * arg){
-    printf("Thread Worker in esecuzione\n");
+    concurrent_queue *queue = (concurrent_queue*)arg;
+    char filepath[MAX_PATH_LEN + 1];
+    FILE *file;
+
+    //mi connetto al socket del processo Collector
+    int sock_collector;
+    if((sock_collector = create_connection()) == -1){
+        return NULL;
+    }
+
+    //prendo il path del file dalla coda
+    while(get_file_queue(queue, filepath) == 0){
+
+        //apro il file
+        if((file = fopen(filepath, "r")) == NULL){
+            print_error("Errore nell'apertura del file %s\n", filepath);
+            close(sock_collector);
+            return NULL;
+        }
+
+        //eseguo il calcolo
+        long risultato = 0;
+        long sum = 0;
+        int i = 0;
+
+        while(fread(&sum, sizeof(long), 1, file) == 1){
+            risultato += sum * i;
+            i++;
+        }
+
+        //chiudo il file
+        fclose(file);
+
+
+        result res;
+        res.value = risultato;
+        strncpy(res.filepath, filepath, MAX_PATH_LEN);
+
+        //invio il risultato al processo Collector
+        if(writen(sock_collector, &res, sizeof(result)) == -1){
+            print_error("Errore nell'invio del risultato al processo Collector\n");
+            close(sock_collector);
+            return NULL;
+        }
+
+    }
 
     return NULL;
 }
@@ -185,7 +213,6 @@ int create_connection(){
         sleep(3);
         continue;
     }
-    printf("Connessione al socket riuscita\n");
     return sockfd;
 }
 
