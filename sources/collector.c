@@ -69,22 +69,25 @@ int start_collector(){
                 FD_SET(tmp_fd, &set);
                 if(tmp_fd > max_fd)
                     max_fd = tmp_fd;
-                printf("Nuova connessione accettata\n");
             }else{
-                // Qui inizia la lettura dei messaggi
-                char buffer[1024];  // Aumenta la dimensione del buffer se necessario
-                ssize_t nread = read(fd_curr, buffer, sizeof(buffer));
+                // Qui inizia la lettura dei messaggi che hanno come tipo result
+                result res;
+                ssize_t nread = read(fd_curr, &res, sizeof(result));
                 if(nread == -1){
-                    perror("Errore nella read");
+                    perror("Errore nella lettura del risultato");
                     return -1;
-                }else if(nread == 0){
-                    printf("Il client ha chiuso la connessione\n");
+                }
+                if(nread == 0){
                     close(fd_curr);
                     FD_CLR(fd_curr, &set);
+                    printf("Connessione chiusa\n");
                 }else{
-                    buffer[nread] = '\0';
-                    printf("Messaggio ricevuto: %s\n", buffer);
+                    //aggiungo il risultato alla lista dei risultati
+                    add_result(array, res.value, res.filepath);
+                    print_result(array);
+                    printf("\n");
                 }
+
 
             }
             fd_curr++;
