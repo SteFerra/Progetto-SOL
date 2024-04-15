@@ -9,6 +9,7 @@
 
 #include "results.h"
 #include "config.h"
+#include "util.h"
 
 int create_socket();
 
@@ -69,6 +70,22 @@ int start_collector(){
                 if(tmp_fd > max_fd)
                     max_fd = tmp_fd;
                 printf("Nuova connessione accettata\n");
+            }else{
+                // Qui inizia la lettura dei messaggi
+                char buffer[1024];  // Aumenta la dimensione del buffer se necessario
+                ssize_t nread = read(fd_curr, buffer, sizeof(buffer));
+                if(nread == -1){
+                    perror("Errore nella read");
+                    return -1;
+                }else if(nread == 0){
+                    printf("Il client ha chiuso la connessione\n");
+                    close(fd_curr);
+                    FD_CLR(fd_curr, &set);
+                }else{
+                    buffer[nread] = '\0';
+                    printf("Messaggio ricevuto: %s\n", buffer);
+                }
+
             }
             fd_curr++;
             fds_found++;
