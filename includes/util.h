@@ -6,6 +6,7 @@
 #include <string.h>
 #include <stdarg.h>
 #include <errno.h>
+#include <unistd.h>
 
 #define MAX_PATH_LEN 255
 
@@ -24,9 +25,5 @@ int checkPosNum(const char* optarg, int* option, const char* error_message);
 int isNumber(const char* s, int * n);
 
 ssize_t writen(int fd, void *buf, size_t size);
-
-
-
-
 
 #endif //PROGETTO_UTIL_H
