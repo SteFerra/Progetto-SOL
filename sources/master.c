@@ -12,22 +12,33 @@
 #include "util.h"
 #include "config.h"
 #include "concurrent_queue.h"
+#include "threadpool.h"
 
-
+static void *signal_task(void *arg);
 int get_options(int argc, char* argv[], int* nthread, int* qlen, int* delay, char *directory, linkedlist argfiles, bool *directory_set);
 int create_connection();
+static void *task(void *arg);
 
 
 int master_worker(int argc, char *argv[]){
-    interrupted = 0;
+    siginterruption_received = 0;
+    sigusr1_received = 0;
+
+    sigset_t set;
+    set_signal_mask(&set);
+
+    //creo il thread per la gestione dei segnali
+    pthread_t signal_thread;
+    if(pthread_create(&signal_thread, NULL, &signal_task, &set) != 0){
+        print_error("Errore nella creazione del thread per la gestione dei segnali\n");
+        return -1;
+    }
 
     int nthread = NUM_THREADS, qlen = QUEUE_SIZE, delay = DELAY;
     char directory[MAX_PATH_LEN + 1];
     bool directory_set = false;
 
     linkedlist argfiles;
-    concurrent_queue queue;
-
     init_list(&argfiles);
 
     //recupero gli argomenti passati al programma
@@ -38,6 +49,7 @@ int master_worker(int argc, char *argv[]){
     else {printf("nthread: %d, qlen: %d, delay: %d\n", nthread, qlen, delay);}
 
     //inizializzo la coda concorrente dei task
+    concurrent_queue queue;
     if(init_queue(&queue, qlen) != 0){
         print_error("Errore nell'inizializzazione della coda concorrente\n");
         clear_all(argfiles, queue);
@@ -45,13 +57,14 @@ int master_worker(int argc, char *argv[]){
     }
 
     //creo il processo Collector
-    int collector_pid;
-    if((collector_pid = fork()) == 0){
+    pid_t collector_pid = fork();
+    if(collector_pid == 0){
+        printf("PID Collector: %d\n", getpid());
         start_collector();
         exit(0);
     }
 
-    //stabilisco la connessione con il processo Collector creando il socket
+    //stabilisco la connessione con il processo Collector creando il socket e connettendomi
     int sock_collector;
     sock_collector = create_connection();
     if(sock_collector == -1){
@@ -59,22 +72,95 @@ int master_worker(int argc, char *argv[]){
         return -1;
     }
 
-    //Invio un messaggio Hello al Collector
-    char hello_msg[] = "HELLO";
-    if(writen(sock_collector, &hello_msg, strlen(hello_msg) + 1) != strlen(hello_msg) + 1){
-        print_error("Errore nell'invio del messaggio HELLO al Collector\n");
+    //creo il pool dei thread Worker e li avvio facendogli eseguire il task
+    threadpool pool;
+    if(init_threadpool(&pool, nthread, task,queue) != 0){
+        print_error("Errore nell'inizializzazione del pool dei thread Worker\n");
         clear_all(argfiles, queue);
         return -1;
     }
-    printf("Messaggio inviato\n");
 
-    sleep(300);
+    /*//invio un messaggio contenente ciao al processo Collector usando writen
+    char *msg = "Ciao";
+    if(writen(sock_collector, msg, strlen(msg)) == -1){
+        print_error("Errore nell'invio del messaggio al processo Collector\n");
+        clear_all(argfiles, queue);
+        return -1;
+    }
+    printf("Messaggio inviato al processo Collector\n");
+    */
 
-
-    //sblocco i segnali
+    print_list(argfiles);
+    printf("\n");
     //unmask();
+    char file[MAX_PATH_LEN + 1]; //nome dle file + 1 per '/0'
+    int result;
+    while(!siginterruption_received){
+        //se ricevo il segnale SIGUSR1 creo un nuovo thread Worker
+        if(sigusr1_received){
+            create_thread(&pool, task, queue);
+            sigusr1_received = 0;
+        }
+        //se ricevo il segnale SIGUSR2 termino un thread Worker
+        /*else if(sigusr2_received){
+            //  TODO: termino un thread
+        }
+         */
+            //altrimenti prendo un file dalla lista
+        result = get_file(argfiles, file);
+        if(result == 0){
+            printf("File da inserire nella coda: %s\n", file);
+            // Inserisco il file all'interno della coda concorrente (con un delay se presente)
+            add_file_queue(queue, file);
+        }
+
+        //se la lista è vuota aspetto un secondo
+        else if(result == -1){
+            sleep(5);
+        }
+
+    }
+
+    //print_queue(queue);
+
+    printf("Interrupted = 1\n");
     clear_all(argfiles, queue);
     return 0;
+}
+
+static void *signal_task(void* arg){
+
+    sigset_t set = *((sigset_t*)arg);
+
+
+    //registro i gestori dei segnali
+    //register_handlers();
+
+    int sig;
+    for(;;){
+        sigwait(&set, &sig);
+        switch(sig){
+            case SIGINT:
+            case SIGHUP:
+            case SIGQUIT:
+            case SIGTERM:
+                printf("Ricevuto segnale di terminazione\n");
+                siginterruption_received = 1;
+                break;
+            case SIGUSR1:
+                sigusr1_received = 1;
+                break;
+            default:
+                break;
+        }
+    }
+    return NULL;
+}
+
+static void *task(void * arg){
+    printf("Thread Worker in esecuzione\n");
+
+    return NULL;
 }
 
 int create_connection(){
