@@ -1,17 +1,27 @@
-//file che gestisce il processo Collector
-
 #include <stdio.h>
-#include <stdlib.h>
 #include <sys/socket.h>
 #include <sys/un.h>
 #include <unistd.h>
 #include <stdbool.h>
+#include <string.h>
+#include <sys/select.h>
+#include <pthread.h>
 
 #include "results.h"
 #include "config.h"
-#include "util.h"
 
 int create_socket();
+
+volatile int stop_printing = 0;
+
+void* print_results_task(void* arg) {
+    resultarray* array = (resultarray*)arg;
+    while (!stop_printing) {
+        print_result(*array);
+        sleep(1);
+    }
+    return NULL;
+}
 
 int start_collector(){
     printf("Collector in avvio...\n");
@@ -32,6 +42,13 @@ int start_collector(){
     if(init_resultarray(&array) != 0){
         printf("Errore nell'array 2\n");
         //TODO: gestire l'errore
+        return -1;
+    }
+
+    // Avvia il thread di stampa
+    pthread_t print_thread;
+    if (pthread_create(&print_thread, NULL, print_results_task, &array) != 0) {
+        perror("Errore nella creazione del thread di stampa");
         return -1;
     }
 
@@ -82,17 +99,13 @@ int start_collector(){
                     FD_CLR(fd_curr, &set);
                     printf("Connessione chiusa\n");
                 }else{
-                    //aggiungo il risultato alla lista dei risultati
+                    //aggiungo il risultato alla lista dei risultati in ordine crescente rispetto al valore
                     add_result(array, res.value, res.filepath);
                     print_result(array);
-                    printf("\n");
                 }
-
-
             }
             fd_curr++;
             fds_found++;
-
         }
     }
 
