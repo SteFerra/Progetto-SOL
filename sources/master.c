@@ -5,6 +5,7 @@
 #include <unistd.h>
 #include <sys/socket.h>
 #include <sys/un.h>
+#include <pthread.h>
 
 #include "master.h"
 #include "my_signal.h"
@@ -185,7 +186,6 @@ static void *task(void * arg){
             close(sock_collector);
             return NULL;
         }
-
     }
 
     return NULL;
@@ -209,7 +209,7 @@ int create_connection(){
             print_error("Impossibile connettersi al socket dopo %d tentativi\n", MAX_ATTEMPTS);
             return -1;
         }
-        printf("Sto tentando di connettermi al socket...\n");
+        //printf("Sto tentando di connettermi al socket...\n");
         sleep(3);
         continue;
     }
@@ -241,7 +241,7 @@ int get_options(int argc, char* argv[], int *nthread, int *qlen, int *delay, cha
                     return -1;
                 }
                 strcpy(directory, optarg);
-                printf("directory: <%s>\tProcedo ad esplorarla\n", directory);
+                //printf("directory: <%s>\tProcedo ad esplorarla\n", directory);
                 *directory_set = true;
                 explore_dir(directory, argfiles);
                 break;
