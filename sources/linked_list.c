@@ -32,7 +32,7 @@ int init_list(linkedlist **list){
         free(*list);
         return -1;
     }
-    printf("Lista dei file inizializzata\n");
+    //printf("Lista dei file inizializzata\n");
     return 0;
 }
 
