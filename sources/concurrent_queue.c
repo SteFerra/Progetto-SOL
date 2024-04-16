@@ -61,7 +61,7 @@ int init_queue(concurrent_queue **queue, size_t size) {
         return -1;
     }
 
-    printf("Coda concorrente inizializzata\n");
+    //printf("Coda concorrente inizializzata\n");
     return 0;
 }
 
