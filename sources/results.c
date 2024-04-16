@@ -1,5 +1,4 @@
 #include <stdio.h>
-#include <malloc.h>
 #include "util.h"
 
 typedef struct result{
@@ -29,7 +28,7 @@ int init_resultarray(resultarray **array){
         return -1;
     }
 
-    printf("Array dei risultati inizializzato\n");
+    //printf("Array dei risultati inizializzato\n");
     return 0;
 }
 
@@ -47,10 +46,24 @@ int add_result(resultarray *array, long value, char *filepath){
         array->buf = res;
         array->capacity = new_capacity;
     }
-    array->buf[array->size].value = value;
-    strncpy(array->buf[array->size].filepath, filepath, MAX_PATH_LEN);
-    array->buf[array->size].filepath[MAX_PATH_LEN] = '\0';
+
+    // Trova la posizione in cui inserire il nuovo risultato
+    int i = 0;
+    while(i < array->size && array->buf[i].value < value){
+        i++;
+    }
+
+    // Sposta tutti i risultati successivi di una posizione verso l'alto
+    for(int j = array->size; j > i; j--){
+        array->buf[j] = array->buf[j-1];
+    }
+
+    // Inserisce il nuovo risultato nella posizione trovata
+    array->buf[i].value = value;
+    strncpy(array->buf[i].filepath, filepath, MAX_PATH_LEN);
+    array->buf[i].filepath[MAX_PATH_LEN] = '\0';
     array->size++;
+
     return 0;
 }
 
@@ -59,7 +72,8 @@ int print_result(resultarray *array){
         return -1;
     }
     for(int i = 0; i < array->size; i++){
-        printf("File: %s\tRisultato: %ld\n", array->buf[i].filepath, array->buf[i].value);
+        printf("%ld %s\n", array->buf[i].value, array->buf[i].filepath);
     }
+    printf("\n");
     return 0;
 }
