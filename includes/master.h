@@ -5,10 +5,11 @@
 
 #include "linked_list.h"
 #include "concurrent_queue.h"
+#include "threadpool.h"
 
 int master_worker(int argc, char *argv[]);
 
-void clear_all(linkedlist argfiles, concurrent_queue queue);
+void clear_all(linkedlist argfiles, concurrent_queue queue, pthread_t thread);
 
 void explore_dir(char *directory, linkedlist argfiles);
 

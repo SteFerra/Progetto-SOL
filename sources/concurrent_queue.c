@@ -2,134 +2,142 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
-#include <stdbool.h>
 
-#include "config.h"
+#include "util.h"
+#include "concurrent_queue.h"
 
-typedef struct concurrent_queue {
-    char **tasks; //array di task
-    size_t max_size; //dimensione massima della coda data da MAX_SIZE
-    size_t size; //dimensione della coda data da qlen
-    size_t start;
-    size_t end;
-    pthread_mutex_t mutex;
-    pthread_cond_t not_empty; //condizione che tiene traccia se la coda non è vuota
-    pthread_cond_t not_full; //condizione che tiene traccia se la coda non è piena
-    bool is_full;
-} concurrent_queue;
+int init_queue(concurrent_queue *queue, size_t size) {
 
-int init_queue(concurrent_queue **queue, size_t size) {
-    int i = 0;
-
-    if((*queue = malloc(sizeof(concurrent_queue))) == NULL){
-        return -1;
+    queue->buffer = (char **)malloc(size * sizeof(char *));
+    if (queue->buffer == NULL) {
+        perror("Errore nell'allocazione della memoria per la coda");
+        exit(EXIT_FAILURE);
     }
-    (*queue)->tasks = NULL;
-    (*queue)->max_size = MAX_SIZE + 1;
-    (*queue)->size = size;
-    (*queue)->start = 0;
-    (*queue)->end = 0;
-    (*queue)->is_full = false;
+    queue->capacity = size;
+    queue->size = 0;
+    queue->front = 0;
+    queue->rear = 0;
+    queue->terminate = false;
 
-    if(((*queue)->tasks = malloc(sizeof(char*) * (*queue)->size)) == NULL){
-        free(*queue);
-        return -1;
-    }
-
-    for(i = 0; i < (*queue)->size; i++){
-        if(((*queue)->tasks[i] = malloc((*queue)->max_size)) == NULL){
-            free(*queue);
+    for(size_t i = 0; i < size; i++){
+        queue->buffer[i] = malloc(sizeof(char) * (MAX_PATH_LEN + 1));
+        if(queue->buffer[i] == NULL) {
+            for (size_t j = 0; j < i; j++) {
+                free(queue->buffer[j]);
+            }
+            free(queue->buffer);
             return -1;
         }
     }
 
-    if(pthread_mutex_init(&(*queue)->mutex, NULL) != 0){
-        free(*queue);
-        return -1;
-    }
+    pthread_mutex_init(&queue->mutex, NULL);
+    pthread_cond_init(&queue->not_empty, NULL);
+    pthread_cond_init(&queue->not_full, NULL);
+    pthread_cond_init(&queue->empty, NULL);
 
-    if(pthread_cond_init(&(*queue)->not_empty, NULL) != 0){
-        pthread_mutex_destroy(&(*queue)->mutex);
-        free(*queue);
-        return -1;
-    }
-
-    if(pthread_cond_init(&(*queue)->not_full, NULL) != 0){
-        pthread_mutex_destroy(&(*queue)->mutex);
-        pthread_cond_destroy(&(*queue)->not_empty);
-        free(*queue);
-        return -1;
-    }
-
-    //printf("Coda concorrente inizializzata\n");
     return 0;
 }
 
-void delete_queue(concurrent_queue *queue) {
-    if(queue == NULL){
-        return;
-    }
-    for(int i = 0; i < queue->size; i++){
-        free(queue->tasks[i]);
-    }
-    free(queue->tasks);
+int add_file_queue(concurrent_queue *queue, char *item) {
 
-    pthread_mutex_destroy(&queue->mutex);
-    pthread_cond_destroy(&queue->not_empty);
-    free(queue);
-}
-
-int add_file_queue(concurrent_queue *queue, char *file){
-    if(queue == NULL || file == NULL){
-        return -1;
-    }
     pthread_mutex_lock(&queue->mutex);
 
-    // Controlla se la coda è piena
-    if(queue->is_full){
+    while (queue->size == queue->capacity) {
         pthread_cond_wait(&queue->not_full, &queue->mutex);
     }
 
-    strncpy(queue->tasks[queue->end], file, queue->max_size);
-    queue->end = (queue->end + 1) % queue->size;
-    queue->is_full = true;
-
-    pthread_cond_signal(&queue->not_empty);
-    pthread_mutex_unlock(&queue->mutex);
-
-    return 0;
-
-}
-
-int get_file_queue(concurrent_queue *queue, char *file){
-    if(queue == NULL || file == NULL){
+    if(queue->terminate == true){
+        pthread_mutex_unlock(&queue->mutex);
+        pthread_cond_signal(&queue->not_empty);
         return -1;
     }
+
+    strncpy(queue->buffer[queue->rear], item, (MAX_PATH_LEN + 1));
+    queue->rear++;
+    queue->rear %= queue->capacity;
+    queue->size++;
+
+    pthread_mutex_unlock(&queue->mutex);
+    pthread_cond_signal(&queue->not_empty);
+    return 0;
+}
+
+// Estrazione di un elemento dalla coda
+int get_file_queue(concurrent_queue *queue, char *file) {
     pthread_mutex_lock(&queue->mutex);
 
-    // Controlla se la coda è vuota
-    if(!queue->is_full){
+    printf("size: %ld\n", queue->size);
+    while (queue->size == 0 && queue->terminate == false) {
         pthread_cond_wait(&queue->not_empty, &queue->mutex);
     }
 
-    strncpy(file, queue->tasks[queue->start], queue->max_size);
-    queue->start = (queue->start + 1) % queue->size;
-    queue->is_full = false;
+    if(queue->terminate == true){
+        printf("terminate\n");
+        pthread_mutex_unlock(&queue->mutex);
+        if(queue->size == 0){
+            pthread_cond_signal(&queue->empty);
+        }
+        pthread_cond_signal(&queue->not_full);
+        return -1;
+    }
 
-    pthread_cond_signal(&queue->not_full);
+    strncpy(file, queue->buffer[queue->front], (MAX_PATH_LEN +1));
+    queue->front++;
+    queue->front %= queue->capacity;
+    queue->size--;
+
     pthread_mutex_unlock(&queue->mutex);
+
+    if(queue->size == 0){
+        pthread_cond_signal(&queue->empty);
+    }
+
+    //pthread_mutex_unlock(&queue->mutex);
+    pthread_cond_signal(&queue->not_full);
 
     return 0;
 }
 
+// Deallocazione della coda
+void delete_queue(concurrent_queue *queue) {
+    for (int i = 0; i < queue->size; i++) {
+        free(queue->buffer[i]);
+    }
+    free(queue->buffer);
+    pthread_mutex_destroy(&queue->mutex);
+    pthread_cond_destroy(&queue->not_empty);
+    pthread_cond_destroy(&queue->not_full);
+}
 
-void print_queue(concurrent_queue *queue){
-    if(queue == NULL){
-        return;
+// aspetta che la coda sia vuota
+int wait_for_empty_queue(concurrent_queue *queue) {
+    pthread_mutex_lock(&queue->mutex);
+    while (queue->size > 0) {
+        pthread_cond_wait(&queue->empty, &queue->mutex);
     }
-    for(int i = 0; i < queue->size; i++){
-        printf("File <%s> in posizione %d\n", queue->tasks[i], i);
+    pthread_mutex_unlock(&queue->mutex);
+    return 0;
+}
+
+int set_terminate(concurrent_queue *queue) {
+    pthread_mutex_lock(&queue->mutex);
+    queue->terminate = true;
+    pthread_mutex_unlock(&queue->mutex);
+    pthread_cond_broadcast(&queue->not_empty);
+    pthread_cond_broadcast(&queue->not_full);
+    return 0;
+}
+
+void print_queue(concurrent_queue queue) {
+
+    for (size_t i = 0; i < queue.capacity; i++) {
+        printf("%s\n", queue.buffer[i]);
     }
+
 
 }
+
+
+
+
 

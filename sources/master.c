@@ -6,6 +6,11 @@
 #include <sys/socket.h>
 #include <sys/un.h>
 #include <pthread.h>
+#include <sys/wait.h>
+#include <signal.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
 #include "master.h"
 #include "my_signal.h"
@@ -22,7 +27,8 @@ int create_connection();
 static void *task(void *arg);
 
 
-int master_worker(int argc, char *argv[]){
+
+int master_worker(int argc, char *argv[]) {
     siginterruption_received = 0;
     sigusr1_received = 0;
 
@@ -31,7 +37,7 @@ int master_worker(int argc, char *argv[]){
 
     //creo il thread per la gestione dei segnali
     pthread_t signal_thread;
-    if(pthread_create(&signal_thread, NULL, &signal_task, &set) != 0){
+    if (pthread_create(&signal_thread, NULL, &signal_task, &set) != 0) {
         print_error("Errore nella creazione del thread per la gestione dei segnali\n");
         return -1;
     }
@@ -47,20 +53,20 @@ int master_worker(int argc, char *argv[]){
     get_options(argc, argv, &nthread, &qlen, &delay, directory, argfiles, &directory_set);
 
     printf("Valori impostati:\t");
-    if(directory_set){printf("nthread: %d, qlen: %d, delay: %d, directory: %s\n", nthread, qlen, delay, directory);}
-    else {printf("nthread: %d, qlen: %d, delay: %d\n", nthread, qlen, delay);}
+    if (directory_set) { printf("nthread: %d, qlen: %d, delay: %d, directory: %s\n", nthread, qlen, delay, directory); }
+    else { printf("nthread: %d, qlen: %d, delay: %d\n", nthread, qlen, delay); }
 
     //inizializzo la coda concorrente dei task
     concurrent_queue queue;
-    if(init_queue(&queue, qlen) != 0){
+    if (init_queue(&queue, qlen) != 0) {
         print_error("Errore nell'inizializzazione della coda concorrente\n");
-        clear_all(argfiles, queue);
+        clear_all(argfiles, queue, signal_thread);
         return -1;
     }
 
     //creo il processo Collector
     pid_t collector_pid = fork();
-    if(collector_pid == 0){
+    if (collector_pid == 0) {
         printf("PID Collector: %d\n", getpid());
         start_collector();
         exit(0);
@@ -69,25 +75,28 @@ int master_worker(int argc, char *argv[]){
     //stabilisco la connessione con il processo Collector creando il socket e connettendomi
     int sock_collector;
     sock_collector = create_connection();
-    if(sock_collector == -1){
-        clear_all(argfiles, queue);
+    if (sock_collector == -1) {
+        clear_all(argfiles, queue, signal_thread);
         return -1;
     }
 
     //creo il pool dei thread Worker e li avvio facendogli eseguire il task
     threadpool pool;
-    if(init_threadpool(&pool, nthread, task,queue) != 0){
+    if (init_threadpool(&pool, nthread, task, &queue) != 0) {
         print_error("Errore nell'inizializzazione del pool dei thread Worker\n");
-        clear_all(argfiles, queue);
+        clear_all(argfiles, queue, signal_thread);
         return -1;
     }
 
     char file[MAX_PATH_LEN + 1]; //nome dle file + 1 per '/0'
-    int result;
-    while(!siginterruption_received){
+    printf("\n\n\n\n\n\n");
+    print_list(argfiles);
+    printf("\n\n\n\n\n\n");
+
+    while (!siginterruption_received && get_file(argfiles, file) == 0) {
         //se ricevo il segnale SIGUSR1 creo un nuovo thread Worker
-        if(sigusr1_received){
-            create_thread(&pool, task, queue);
+        if (sigusr1_received) {
+            create_thread(&pool, task, &queue);
             sigusr1_received = 0;
         }
         //se ricevo il segnale SIGUSR2 termino un thread Worker
@@ -95,20 +104,51 @@ int master_worker(int argc, char *argv[]){
             //  TODO: termino un thread
         }
          */
-            //altrimenti prendo un file dalla lista
-        result = get_file(argfiles, file);
-        if(result == 0){
-            // Inserisco il file all'interno della coda concorrente (con un delay se presente)
-            add_file_queue(queue, file);
-            usleep(delay * 1000); //delay in millisecondi
-        }
+        add_file_queue(&queue, file);
+        if (delay > 0) usleep(delay * 1000); //delay in millisecondi
 
     }
 
-    //print_queue(queue);
+    if(siginterruption_received){
+        printf("SONO QUI\n");
+    }
 
-    printf("Interrupted = 1\n");
-    clear_all(argfiles, queue);
+    wait_for_empty_queue(&queue);
+
+    set_terminate(&queue);
+
+    //asperto che tutti i thread abbiano terminato
+    wait_threadpool(&pool);
+    printf("Tutti i thread hanno terminato\n");
+
+    //aspetto che tutti i thread abbiano terminato
+    //wait_threadpool(&pool);
+
+    //invio il messaggio di terminazione al processo Collector
+    result stop_msg;
+    stop_msg.value = -1;
+    stop_msg.filepath[0] = '\0';
+    if(writen(sock_collector, &stop_msg, sizeof(result)) == -1){
+        print_error("Errore nell'invio del messaggio di terminazione al processo Collector\n");
+    }
+
+    //attendo la terminazione del processo Collector
+    waitpid(collector_pid, NULL, 0);
+    printf("Waitpid terminato\n");
+
+    clear_all(argfiles, queue, signal_thread);
+
+    printf("Clear all terminato\n");
+
+    if (pthread_cancel(signal_thread) != 0) {
+        perror("Error cancelling the signal handling thread");
+    }
+
+    // Wait for the signal handling thread to terminate
+    if (pthread_join(signal_thread, NULL) != 0) {
+        perror("Error joining the signal handling thread");
+    }
+
     return 0;
 }
 
@@ -141,10 +181,11 @@ static void *signal_task(void* arg){
     return NULL;
 }
 
-static void *task(void * arg){
+static void *task(void *arg){
     concurrent_queue *queue = (concurrent_queue*)arg;
     char filepath[MAX_PATH_LEN + 1];
-    FILE *file;
+    FILE *file = NULL;
+    int ret = -1;
 
     //mi connetto al socket del processo Collector
     int sock_collector;
@@ -152,14 +193,14 @@ static void *task(void * arg){
         return NULL;
     }
 
+
     //prendo il path del file dalla coda
     while(get_file_queue(queue, filepath) == 0){
-
         //apro il file
         if((file = fopen(filepath, "r")) == NULL){
             print_error("Errore nell'apertura del file %s\n", filepath);
             close(sock_collector);
-            return NULL;
+            return (void*)ret;
         }
 
         //eseguo il calcolo
@@ -172,9 +213,19 @@ static void *task(void * arg){
             i++;
         }
 
-        //chiudo il file
-        fclose(file);
-
+        if(!feof(file)){
+            print_error("Errore nella lettura del file %s\n", filepath);
+           if(file != NULL){
+               if(fclose(file) != 0){
+                   print_error("Errore nella chiusura del file %s\n", filepath);
+                   return (void*)ret;
+               }
+           }
+           if(close(sock_collector) != 0){
+               print_error("Errore nella chiusura del socket\n");
+               return (void*)ret;
+           }
+        }
 
         result res;
         res.value = risultato;
@@ -183,11 +234,35 @@ static void *task(void * arg){
         //invio il risultato al processo Collector
         if(writen(sock_collector, &res, sizeof(result)) == -1){
             print_error("Errore nell'invio del risultato al processo Collector\n");
-            close(sock_collector);
-            return NULL;
+            if(file != NULL){
+                if(fclose(file) != 0){
+                    print_error("Errore nella chiusura del file %s\n", filepath);
+                    return (void*)ret;
+                }
+            }
+            if(close(sock_collector) != 0){
+                print_error("Errore nella chiusura del socket\n");
+                return (void*)ret;
+            }
         }
+
+        if(fclose(file) != 0){
+            print_error("Errore nella chiusura del file %s\n", filepath);
+            file = NULL;
+            if(close(sock_collector) != 0){
+                print_error("Errore nella chiusura del socket\n");
+                return (void*)ret;
+            }
+            return (void*)ret;
+        }
+
+        printf("File %s inviato\n", filepath);
+
+        file = NULL;
+        //printf("Thread: %ld\tFile: %s\n", pthread_self(), filepath);
     }
 
+    //printf("Thread %ld is terminating\n", pthread_self());
     return NULL;
 }
 
@@ -315,9 +390,10 @@ void explore_dir(char *directory, linkedlist argfiles){
     closedir(dir);
 }
 
-void clear_all(linkedlist argfiles, concurrent_queue queue){
+void clear_all(linkedlist argfiles, concurrent_queue queue, pthread_t signal_thread){
     delete_list(argfiles);
-    delete_queue(queue);
+    delete_queue(&queue);
+    //delete_threadpool(pool);
 }
 
 

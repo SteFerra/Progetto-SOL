@@ -42,6 +42,7 @@ int delete_list(linkedlist *list){
     }
     free(list->string);
     free(list);
+    printf("Lista dei file eliminata\n");
     return 0;
 }
 
@@ -75,9 +76,27 @@ int get_file(linkedlist *list, char* file){
     return 0;
 }
 
+int is_empty_list(linkedlist *list){
+    if(list == NULL || list->dim == 0){
+        return 1;
+    }
+    return 0;
+}
+
+int get_list_size(linkedlist *list){
+    if(list == NULL){
+        return -1;
+    }
+    return list->dim;
+}
+
 
 // Usato per il DEBUG
-void print_list(linkedlist *list){
+int print_list(linkedlist *list){
+    if(list == NULL || list->dim == 0){
+        return -1;
+    }
+
     char (*tostring)[][list->elem_size];
     tostring = list->string;
     for(int i = 0; i < list->dim; i++){
@@ -88,6 +107,7 @@ void print_list(linkedlist *list){
         }
         printf("File %d: %s, Dimensioni: %ld bytes\n", i, (*tostring)[i], file_stat.st_size);
     }
+    return 0;
 }
 
 
