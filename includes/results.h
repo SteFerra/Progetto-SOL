@@ -13,5 +13,6 @@ typedef struct resultarray *resultarray;
 int init_resultarray(resultarray *array);
 int add_result(resultarray array, long value, char *filepath);
 int print_result(resultarray array);
+int delete_resultarray(resultarray array);
 
 #endif //PROGETTO_RESULTS_H
