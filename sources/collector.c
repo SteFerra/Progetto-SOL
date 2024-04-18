@@ -61,7 +61,9 @@ int start_collector(){
     FD_ZERO(&set);
     FD_SET(listenfd, &set);
 
-    while(true){
+    int stop = 0;
+
+    while(!stop){
         rdset = set;
         int fd_ready;
         fd_ready = select(max_fd + 1, &rdset, NULL, NULL, NULL);
@@ -86,12 +88,11 @@ int start_collector(){
                 FD_SET(tmp_fd, &set);
                 if(tmp_fd > max_fd)
                     max_fd = tmp_fd;
-            }else{
-                // Qui inizia la lettura dei messaggi che hanno come tipo result
-                result res;
-                ssize_t nread = read(fd_curr, &res, sizeof(result));
+            }else {
+                result msg;
+                ssize_t nread = read(fd_curr, &msg, sizeof(result));
                 if(nread == -1){
-                    perror("Errore nella lettura del risultato");
+                    perror("Errore nella lettura del messaggio");
                     return -1;
                 }
                 if(nread == 0){
@@ -99,16 +100,48 @@ int start_collector(){
                     FD_CLR(fd_curr, &set);
                     printf("Connessione chiusa\n");
                 }else{
-                    //aggiungo il risultato alla lista dei risultati in ordine crescente rispetto al valore
-                    add_result(array, res.value, res.filepath);
-                    print_result(array);
+                    if(msg.value == -1 && msg.filepath[0] == '\0'){
+                        // gestisci la terminazione
+                        stop = 1;
+                        break;
+
+                    } else {
+                        // gestisci il risultato come prima
+                        add_result(array, msg.value, msg.filepath);
+                        //print_result(array);
+                    }
                 }
             }
             fd_curr++;
             fds_found++;
         }
+
+    }
+    //fermo il thread di stampa facendolo stampare l'ultima volta
+    stop_printing = 1;
+    pthread_join(print_thread, NULL);
+    print_result(array);R
+
+    //chiudo tutti i socket
+    for(int i = 0; i < max_fd + 1; i++){
+        if(FD_ISSET(i, &set)){
+            close(i);
+            FD_CLR(i, &set);
+        }
     }
 
+    //chiudo il socket
+    close(listenfd);
+
+    //elimino il socket
+    unlink(SOCKET_PATH);
+
+    //elimino l'array dei risultati
+    delete_resultarray(array);
+
+    //printf("MESSAGGIO ARRIVATO STOP\n");
+    //sleep(100);
+    printf("Collector terminato\n");
     return 0;
 }
 
