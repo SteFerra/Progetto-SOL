@@ -19,7 +19,7 @@ typedef struct {
 } concurrent_queue;
 
 int init_queue(concurrent_queue *queue, size_t size);
-void delete_queue(concurrent_queue *queue);
+int delete_queue(concurrent_queue *queue);
 int add_file_queue(concurrent_queue *queue, char *file);
 int get_file_queue(concurrent_queue *queue, char *file);
 int wait_for_empty_queue(concurrent_queue *queue);
