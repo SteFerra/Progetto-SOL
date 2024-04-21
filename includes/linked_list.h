@@ -3,14 +3,16 @@
 
 #include <stdlib.h>
 
-typedef struct linkedlist *linkedlist;
+typedef struct linkedlist{
+    void *string;
+    size_t dim;    //numero di elementi nella lista
+    size_t size;    //massima grandezza della lista
+    size_t elem_size;   //massima grandezza di un path
+}linkedlist;
 
 int init_list(linkedlist* list);
-int delete_list(linkedlist list);
-int add_file(linkedlist list, char* file);
-int get_file(linkedlist list, char* file);
-int is_empty_list(linkedlist list);
-int get_list_size(linkedlist list);
-int print_list(linkedlist list);
+int delete_list(linkedlist *list);
+int add_file(linkedlist *list, char* file);
+int get_file(linkedlist *list, char* file);
 
 #endif //PROGETTO_LINKED_LIST_H

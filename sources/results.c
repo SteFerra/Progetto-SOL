@@ -82,6 +82,7 @@ int delete_resultarray(resultarray *array){
     if(array == NULL){
         return -1;
     }
+
     free(array->buf);
     free(array);
     return 0;

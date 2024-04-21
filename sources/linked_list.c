@@ -1,38 +1,26 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
-#include <sys/stat.h>
 
 #include "util.h"
+#include "linked_list.h"
 
 
 
 #define LIST_SIZE 10
 
-typedef struct linkedlist{
-    void *string;
-    size_t dim;    //numero di elementi nella lista
-    size_t size;    //massima grandezza della lista
-    size_t elem_size;   //massima grandezza di un path
-}linkedlist;
 
-int init_list(linkedlist **list){
-    (*list) = malloc(sizeof(linkedlist));
-    if(*list == NULL){
-        free((*list)->string);
-        free(*list);
+int init_list(linkedlist *list){
+    if(list == NULL){
         return -1;
     }
-    (*list)->dim = 0;
-    (*list)->size= LIST_SIZE;
-    (*list)->elem_size = MAX_PATH_LEN + 1;
-    (*list)->string = malloc(sizeof(char[(*list)->size][(*list)->elem_size]));
-    if((*list)->string == NULL){
-        free((*list)->string);
-        free(*list);
+    list->dim = 0;
+    list->size= LIST_SIZE;
+    list->elem_size = MAX_PATH_LEN + 1;
+    list->string = malloc(sizeof(char[list->size][list->elem_size]));
+    if(list->string == NULL){
         return -1;
     }
-    //printf("Lista dei file inizializzata\n");
     return 0;
 }
 
@@ -41,8 +29,7 @@ int delete_list(linkedlist *list){
         return -1;
     }
     free(list->string);
-    free(list);
-    printf("Lista dei file eliminata\n");
+    //printf("Lista dei file eliminata\n");
     return 0;
 }
 
@@ -65,7 +52,6 @@ int add_file(linkedlist *list, char* file){
         return -1;
     }
     list->dim++;
-    //printf("File <%s> aggiunto alla lista\n", file);
     return 0;
 }
 
@@ -76,22 +62,7 @@ int get_file(linkedlist *list, char* file){
     return 0;
 }
 
-int is_empty_list(linkedlist *list){
-    if(list == NULL || list->dim == 0){
-        return 1;
-    }
-    return 0;
-}
-
-int get_list_size(linkedlist *list){
-    if(list == NULL){
-        return -1;
-    }
-    return list->dim;
-}
-
-
-// Usato per il DEBUG
+/*
 int print_list(linkedlist *list){
     if(list == NULL || list->dim == 0){
         return -1;
@@ -109,5 +80,5 @@ int print_list(linkedlist *list){
     }
     return 0;
 }
-
+ */
 

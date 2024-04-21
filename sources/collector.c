@@ -2,13 +2,13 @@
 #include <sys/socket.h>
 #include <sys/un.h>
 #include <unistd.h>
-#include <stdbool.h>
 #include <string.h>
 #include <sys/select.h>
 #include <pthread.h>
 
 #include "results.h"
 #include "config.h"
+#include "my_signal.h"
 
 int create_socket();
 
@@ -24,10 +24,10 @@ void* print_results_task(void* arg) {
 }
 
 int start_collector(){
-    printf("Collector in avvio...\n");
-
     //gestisco i segnali
-    //TODO: gestire i segnali
+    sigset_t signal_set;
+    set_signal_mask(&signal_set);
+    //ignore_signals();
 
     //creo il socket per la comunicazione con il MasterWorker
     int listenfd = create_socket();
@@ -119,8 +119,12 @@ int start_collector(){
     }
     //fermo il thread di stampa facendolo stampare l'ultima volta
     stop_printing = 1;
-    pthread_join(print_thread, NULL);
-    print_result(array);R
+    if(pthread_join(print_thread, NULL) != 0){
+        perror("Errore nella join del thread di stampa");
+        return -1;
+    }
+
+    print_result(array);
 
     //chiudo tutti i socket
     for(int i = 0; i < max_fd + 1; i++){
@@ -139,9 +143,7 @@ int start_collector(){
     //elimino l'array dei risultati
     delete_resultarray(array);
 
-    //printf("MESSAGGIO ARRIVATO STOP\n");
-    //sleep(100);
-    printf("Collector terminato\n");
+    //printf("Collector terminato\n");
     return 0;
 }
 

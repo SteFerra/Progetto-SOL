@@ -9,9 +9,9 @@
 
 int master_worker(int argc, char *argv[]);
 
-void clear_all(linkedlist argfiles, concurrent_queue queue, pthread_t thread);
+void clear_all(linkedlist argfiles, concurrent_queue queue, threadpool pool);
 
-void explore_dir(char *directory, linkedlist argfiles);
+void explore_dir(char *directory, linkedlist *argfiles);
 
 int start_collector();
 
