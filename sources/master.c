@@ -12,7 +12,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-
 #include "master.h"
 #include "my_signal.h"
 #include "linked_list.h"
@@ -73,7 +72,6 @@ int master_worker(int argc, char *argv[]) {
     //creo il processo Collector
     pid_t collector_pid = fork();
     if (collector_pid == 0) {
-        //printf("PID Collector: %d\n", getpid());
         start_collector();
         exit(0);
     } else if (collector_pid == -1) {
@@ -91,7 +89,6 @@ int master_worker(int argc, char *argv[]) {
     }
 
     //creo il pool dei thread Worker e li avvio facendogli eseguire il task
-
     if (init_threadpool(&pool, nthread, task, &queue) != 0) {
         print_error("Errore nell'inizializzazione del pool dei thread Worker\n");
         clear_all(argfiles, queue, pool);
@@ -115,12 +112,10 @@ int master_worker(int argc, char *argv[]) {
 
     }
 
-    if(siginterruption_received){
-        printf("Terminazione forzata\n");
-    }
-
+    //aspetto che la coda sia vuota
     wait_for_empty_queue(&queue);
 
+    //imposto la variabile terminate a 1
     set_terminate(&queue);
 
     //aspetto che tutti i thread abbiano terminato
@@ -143,13 +138,13 @@ int master_worker(int argc, char *argv[]) {
     int collector_status;
     waitpid(collector_pid, &collector_status, 0);
 
+    //libero la memoria allocata
     clear_all(argfiles, queue, pool);
 
     // Wait for the signal handling thread to terminate
     if(pthread_cancel(signal_thread) != 0){
         perror("Error sending signal to the signal handling thread");
     }
-
     if (pthread_join(signal_thread, NULL) != 0) {
         perror("Error joining the signal handling thread");
     }
@@ -163,10 +158,6 @@ static void *signal_task(void* arg){
 
     sigset_t master_set = *((sigset_t*)arg);
 
-
-    //registro i gestori dei segnali
-    //register_handlers();
-
     int sig;
     for(;;){
         sigwait(&master_set, &sig);
@@ -175,7 +166,6 @@ static void *signal_task(void* arg){
             case SIGHUP:
             case SIGQUIT:
             case SIGTERM:
-                printf("Ricevuto segnale di terminazione\n");
                 siginterruption_received = 1;
                 break;
             case SIGUSR1:
@@ -204,8 +194,7 @@ static void *task(void *arg){
         return NULL;
     }
 
-
-    //prendo il path del file dalla coda
+    //prendo il path del file dalla coda concorrente
     while(get_file_queue(queue, filepath) == 0){
         //apro il file
         if((file = fopen(filepath, "r")) == NULL){
@@ -268,23 +257,16 @@ static void *task(void *arg){
             return NULL;
         }
 
-        //printf("File %s inviato\n", filepath);
-
         file = NULL;
 
         pthread_mutex_lock(&pool->mutex);
         if(pool->dim > pool->desired_threads){
             --pool->dim;
             pthread_mutex_unlock(&pool->mutex);
-            printf("Thread %ld terminato\n", pthread_self());
             return NULL;
         }
         pthread_mutex_unlock(&pool->mutex);
-
-        //printf("Thread: %ld\tFile: %s\n", pthread_self(), filepath);
     }
-
-    //printf("Thread %ld is terminating\n", pthread_self());
     return NULL;
 }
 
@@ -306,10 +288,7 @@ int create_connection(){
             print_error("Impossibile connettersi al socket dopo %d tentativi\n", MAX_ATTEMPTS);
             return -1;
         }
-        //printf("Sto tentando di connettermi al socket...\n");
-        //20 ms
         usleep(20 * 1000);
-        //continue;
     }
     return sockfd;
 }
@@ -426,9 +405,7 @@ int send_stop_msg(int sockfd){
 
 void clear_all(linkedlist argfiles, concurrent_queue queue, threadpool pool){
     delete_list(&argfiles);
-
     delete_queue(&queue);
-
     delete_threadpool(&pool);
 }
 

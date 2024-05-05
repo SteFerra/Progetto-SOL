@@ -1,6 +1,5 @@
 #include <pthread.h>
 #include <stdlib.h>
-#include <stdio.h>
 #include <string.h>
 #include <stdbool.h>
 
@@ -8,6 +7,7 @@
 #include "concurrent_queue.h"
 
 
+// inizializzazione della coda con dimensione data da size
 int init_queue(concurrent_queue *queue, size_t size) {
     if (queue == NULL) {
         return -1;
@@ -46,6 +46,7 @@ int init_queue(concurrent_queue *queue, size_t size) {
     return 0;
 }
 
+// aggiunta di un elemento alla coda
 int add_file_queue(concurrent_queue *queue, char *item) {
 
     pthread_mutex_lock(&queue->mutex);
@@ -98,13 +99,12 @@ int get_file_queue(concurrent_queue *queue, char *file) {
         pthread_cond_signal(&queue->empty);
     }
 
-    //pthread_mutex_unlock(&queue->mutex);
     pthread_cond_signal(&queue->not_full);
 
     return 0;
 }
 
-// Deallocazione della coda
+// elimina la coda e libera la memoria
 int delete_queue(concurrent_queue *queue) {
     if(queue == NULL){
         return -1;
@@ -136,6 +136,7 @@ int wait_for_empty_queue(concurrent_queue *queue) {
     return 0;
 }
 
+// setta il flag terminate a true e sveglia tutti i thread in attesa
 int set_terminate(concurrent_queue *queue) {
     if(queue == NULL){
         return -1;
@@ -147,17 +148,3 @@ int set_terminate(concurrent_queue *queue) {
     pthread_cond_broadcast(&queue->not_full);
     return 0;
 }
-
-void print_queue(concurrent_queue queue) {
-
-    for (size_t i = 0; i < queue.capacity; i++) {
-        printf("%s\n", queue.buffer[i]);
-    }
-
-
-}
-
-
-
-
-

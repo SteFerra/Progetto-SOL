@@ -4,9 +4,7 @@
 
 #include "threadpool.h"
 
-
-//work -> i thread prendono i file dalla coda e calcolano il risultato
-//arg -> la coda da cui prendono i file
+// inizializza il threadpool con il numero di thread dato da nthread e la funzione task
 int init_threadpool(threadpool *pool, int nthread, void* (*task)(void *), void* arg){
 
     pool->dim = 0;
@@ -31,13 +29,11 @@ int init_threadpool(threadpool *pool, int nthread, void* (*task)(void *), void* 
     return 0;
 }
 
+// funzione per creare un thread nel pool usata all'arrivo del segnale SIGUSR1
 int create_thread(threadpool *pool, void* (*task)(void *), void* arg){
     if(pool == NULL){
         return -1;
     }
-
-    //creo un thread nel pool
-    //incremento la dimensione del pool
 
     pool->args = malloc(sizeof(thread_args));
     pool->args->pool = pool;
@@ -49,33 +45,28 @@ int create_thread(threadpool *pool, void* (*task)(void *), void* arg){
 
     ++pool->dim;
     ++pool->desired_threads;
-    printf("dim: %d\n", pool->dim);
 
     return 0;
 }
 
+// funzione per eliminare un thread dal pool usata all'arrivo del segnale SIGUSR2
 int delete_thread(threadpool *pool, concurrent_queue *queue){
     if(pool == NULL){
         return -1;
     }
 
-    //se il pool è vuoto non posso eliminare thread
-    if(pool->dim == 1 || pool == NULL){
+    //se il pool contiene un solo thread non posso eliminarlo
+    if(pool->dim == 1){
         return -1;
     }
 
-    //elimino un thread dal pool
-    //decremento la dimensione del pool
-
     --pool->desired_threads;
-
-    printf("dim: %d\n", pool->dim);
 
     return 0;
 }
 
 
-
+// funzione per attendere la terminazione di tutti i thread del pool
 int wait_threadpool(threadpool *pool){
     for(int i = 0; i < pool->dim; i++){
         if(pthread_join(pool->thread[i], NULL) != 0){
@@ -85,6 +76,7 @@ int wait_threadpool(threadpool *pool){
     return 0;
 }
 
+// funzione per eliminare il pool e liberare la memoria
 int delete_threadpool(threadpool *pool){
     if(pool == NULL){
         return -1;
@@ -93,17 +85,3 @@ int delete_threadpool(threadpool *pool){
     free(pool->thread);
     return 0;
 }
-
-int get_thread_index(threadpool *pool){
-    if(pool == NULL){
-        return -1;
-    }
-    pthread_t self = pthread_self();
-    for (int i = 0; i < pool->dim; i++) {
-        if (pthread_equal(pool->thread[i], self)) {
-            return i;
-        }
-    }
-    return -1;  // Return -1 if the current thread is not found in the pool
-}
-

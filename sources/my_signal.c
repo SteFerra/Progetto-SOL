@@ -1,14 +1,13 @@
 #include <pthread.h>
 #include <signal.h>
 #include <string.h>
-#include <stdio.h>
 #include "my_signal.h"
 
 volatile sig_atomic_t siginterruption_received;
 volatile sig_atomic_t sigusr1_received;
 volatile sig_atomic_t sigusr2_received;
 
-
+// imposto la maschera dei segnali
 void set_signal_mask(sigset_t *set){
     sigemptyset(set);
     sigaddset(set, SIGHUP);    //codice 1
@@ -30,33 +29,7 @@ void ignore_signals(){
     sigaction(SIGTERM, &sa, NULL);
     sigaction(SIGUSR1, &sa, NULL);
     sigaction(SIGUSR2, &sa, NULL);
+    sigaction(SIGPIPE, &sa, NULL);
 }
 
-/*
-void register_handlers(){
-    struct sigaction sa;
-    memset(&sa, 0, sizeof(sa));
-    sa.sa_handler = termination_handler;
-    sigaction(SIGHUP, &sa, NULL);
-    sigaction(SIGINT, &sa, NULL);
-    sigaction(SIGQUIT, &sa, NULL);
-    sigaction(SIGTERM, &sa, NULL);
-    sa.sa_handler = sigusr1_handler;
-    sigaction(SIGUSR1, &sa, NULL);
-
-}
-*/
-void unmask(){
-    sigset_t set;
-    sigemptyset(&set);
-    pthread_sigmask(SIG_SETMASK, &set, NULL);
-}
-
-void termination_handler(int signum){
-    siginterruption_received = 1;
-}
-
-void sigusr1_handler(int signum){
-    sigusr1_received = 1;
-}
 

@@ -4,7 +4,7 @@
 #include <stdlib.h>
 
 typedef struct linkedlist{
-    void *string;
+    void *string;   //puntatore all array dinamico di nome di file
     size_t dim;    //numero di elementi nella lista
     size_t size;    //massima grandezza della lista
     size_t elem_size;   //massima grandezza di un path

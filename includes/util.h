@@ -14,16 +14,11 @@
 #define EXTRA_LEN_PRINT_ERROR   512
 #endif
 
-#define PRINT_HELP printf("Utilizza: %s -n <nthread> -q <qlen> -t <delay> -d <directory-name>\n", argv[0]); \
-                   printf("oppure\n");                                                                   \
-                   printf("Utilizza: %s -n <nthread> -q <qlen> -t <delay> <list-of-file>\n", argv[0]);
+#define PRINT_HELP printf("Utilizza: ./farm -n <nthread> -q <qlen> -t <delay> [-d <directory-name>] e/o [list-of-files] \n");
 
 void print_error(const char * str, ...);
-
 int checkPosNum(const char* optarg, int* option, const char* error_message);
-
 int isNumber(const char* s, int * n);
-
 ssize_t writen(int fd, void *buf, size_t size);
 
 #endif //PROGETTO_UTIL_H

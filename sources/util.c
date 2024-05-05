@@ -1,9 +1,7 @@
 #include <unistd.h>
 #include "util.h"
 
-
-
-  void print_error(const char * str, ...) {
+void print_error(const char * str, ...){
     const char err[]="";
     va_list argp;
     char * p=(char *)malloc(strlen(str)+strlen(err)+EXTRA_LEN_PRINT_ERROR);
@@ -30,9 +28,9 @@
     if (errno == ERANGE) return 2;    // overflow/underflow
     if (e != NULL && *e == (char)0) {
         *n = val;
-        return 0;   // successo
+        return 0;
     }
-    return 1;   // non e' un numero
+    return 1;
 }
 
 int checkPosNum(const char* optarg, int* option, const char* error_message){
@@ -50,12 +48,11 @@ ssize_t writen(int fd, void *buf, size_t size) {
     left = size;
     while (left > 0) {
         if((nwritten = write(fd, buf, left)) < 0) {
-            if (left == size) return -1; /* error, return -1 */
-            else break; /* error, return amount written so far */
+            if (left == size) return -1;
+            else break; // errore, ritorno il numero di byte scritti
         } else if (nwritten == 0) break;
         left -= nwritten;
         ptr += nwritten;
     }
-    return(size - left); /* return >= 0 */
+    return(size - left);
 }
-

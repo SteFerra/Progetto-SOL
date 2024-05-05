@@ -15,6 +15,7 @@ typedef struct resultarray{
 
 int init_resultarray(resultarray **array);
 
+// inizializza un array di risultati con capacità iniziale 10
 int init_resultarray(resultarray **array){
     if((*array = malloc (sizeof(resultarray))) == NULL){
         perror("malloc");
@@ -28,10 +29,11 @@ int init_resultarray(resultarray **array){
         return -1;
     }
 
-    //printf("Array dei risultati inizializzato\n");
     return 0;
 }
 
+// aggiunge un risultato all array, se l array è pieno raddoppia la capacità
+// nota: il risultato viene inserito in modo ordinato crescente in base al valore del risultato
 int add_result(resultarray *array, long value, char *filepath){
     if(array == NULL){
         return -1;
@@ -67,6 +69,7 @@ int add_result(resultarray *array, long value, char *filepath){
     return 0;
 }
 
+// stampa tutti i risultati dell array
 int print_result(resultarray *array){
     if(array == NULL){
         return -1;
@@ -78,6 +81,7 @@ int print_result(resultarray *array){
     return 0;
 }
 
+// elimina l array di risultati e libera la memoria
 int delete_resultarray(resultarray *array){
     if(array == NULL){
         return -1;

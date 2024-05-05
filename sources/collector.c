@@ -12,24 +12,29 @@
 
 int create_socket();
 
+// Variabile globale per fermare il thread di stampa
 volatile int stop_printing = 0;
 
+// Funzione eseguita dal thread di stampa
 void* print_results_task(void* arg) {
     resultarray* array = (resultarray*)arg;
+
     while (!stop_printing) {
         print_result(*array);
         sleep(1);
     }
+
     return NULL;
 }
 
+
 int start_collector(){
-    //gestisco i segnali
+    // gestisco i segnali
     sigset_t signal_set;
     set_signal_mask(&signal_set);
-    //ignore_signals();
+    ignore_signals();
 
-    //creo il socket per la comunicazione con il MasterWorker
+    // creo il socket per la comunicazione con il MasterWorker
     int listenfd = create_socket();
     if(listenfd == -1){
         unlink(SOCKET_PATH);
@@ -37,32 +42,32 @@ int start_collector(){
         return -1;
     }
 
-    //inizializzo la lista dei risultati da stampare
+    // inizializzo l array dei risultati da stampare
     resultarray array;
     if(init_resultarray(&array) != 0){
-        printf("Errore nell'array 2\n");
-        //TODO: gestire l'errore
+        printf("Errore nell array 2\n");
         return -1;
     }
 
-    // Avvia il thread di stampa
+    // avvio il thread di stampa
     pthread_t print_thread;
     if (pthread_create(&print_thread, NULL, print_results_task, &array) != 0) {
         perror("Errore nella creazione del thread di stampa");
         return -1;
     }
 
+
     int max_fd=0;
     if(listenfd > max_fd)
         max_fd = listenfd;
 
     //utilizzo la select per gestire le richieste di connessione
+    //e i messaggi ricevuti dai MasterWorker
     fd_set set, rdset;
     FD_ZERO(&set);
     FD_SET(listenfd, &set);
 
     int stop = 0;
-
     while(!stop){
         rdset = set;
         int fd_ready;
@@ -100,15 +105,14 @@ int start_collector(){
                     FD_CLR(fd_curr, &set);
                     printf("Connessione chiusa\n");
                 }else{
+                    // se ricevo il messaggio di stop termino il collector
                     if(msg.value == -1 && msg.filepath[0] == '\0'){
-                        // gestisci la terminazione
                         stop = 1;
                         break;
 
                     } else {
-                        // gestisci il risultato come prima
+                        // altrimenti aggiungo il risultato all'array
                         add_result(array, msg.value, msg.filepath);
-                        //print_result(array);
                     }
                 }
             }
@@ -123,10 +127,9 @@ int start_collector(){
         perror("Errore nella join del thread di stampa");
         return -1;
     }
-
     print_result(array);
 
-    //chiudo tutti i socket
+    //chiudo tutti i file descriptor aperti e li elimino dall'insieme
     for(int i = 0; i < max_fd + 1; i++){
         if(FD_ISSET(i, &set)){
             close(i);
@@ -140,13 +143,14 @@ int start_collector(){
     //elimino il socket
     unlink(SOCKET_PATH);
 
-    //elimino l'array dei risultati
+    //elimino l array dei risultati
     delete_resultarray(array);
 
-    //printf("Collector terminato\n");
     return 0;
 }
 
+// Funzione per creare il socket per la comunicazione con il MasterWorker
+// Restituisce il file descriptor del socket
 int create_socket(){
     unlink(SOCKET_PATH);
     int sockfd;
