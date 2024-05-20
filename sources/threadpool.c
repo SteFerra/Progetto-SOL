@@ -65,7 +65,6 @@ int delete_thread(threadpool *pool, concurrent_queue *queue){
     return 0;
 }
 
-
 // funzione per attendere la terminazione di tutti i thread del pool
 int wait_threadpool(threadpool *pool){
     for(int i = 0; i < pool->dim; i++){

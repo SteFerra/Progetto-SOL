@@ -262,8 +262,9 @@ static void *task(void *arg){
         pthread_mutex_lock(&pool->mutex);
         if(pool->dim > pool->desired_threads){
             --pool->dim;
+            pthread_detach(pthread_self());
             pthread_mutex_unlock(&pool->mutex);
-            return NULL;
+            pthread_exit(NULL);
         }
         pthread_mutex_unlock(&pool->mutex);
     }
